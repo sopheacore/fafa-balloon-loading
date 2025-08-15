@@ -121,6 +121,20 @@
     }
 
     @media (max-height: 560px){ .balloons{ top:50%; } }
+
+    /* Bigger balloons on mobile / Telegram webview */
+	@media (max-width: 600px) {
+	  .balloon {
+	    width:  clamp(120px, 24vw, 275px);
+	    height: clamp(120px, 24vw, 275px);
+	  }
+	  /* Make the grid cells match the bigger balloons (seen briefly at load) */
+	  .balloons {
+	    grid-template-columns: repeat(4, clamp(90px, 24vw, 175px));
+	  }
+	}
+
+
   </style>
 </head>
 <body>
