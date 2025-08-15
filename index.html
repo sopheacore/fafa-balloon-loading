@@ -4,12 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Balloon Loading Game</title>
-    <!-- Favicon -->
+  <!-- Favicon -->
   <link rel="icon" href="./assets/hot-air-balloon.ico" type="image/x-icon" />
 
-
-
-  <!-- ✅ Meta Pixel (same as your last project) -->
+  <!-- ✅ Meta Pixel -->
   <script>
     !(function (f, b, e, v, n, t, s) {
       if (f.fbq) return;
@@ -17,15 +15,9 @@
         n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
       };
       if (!f._fbq) f._fbq = n;
-      n.push = n;
-      n.loaded = !0;
-      n.version = "2.0";
-      n.queue = [];
-      t = b.createElement(e);
-      t.async = !0;
-      t.src = v;
-      s = b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t, s);
+      n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
+      t = b.createElement(e); t.async = !0; t.src = v;
+      s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
     })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
     fbq("init", "730830449557162");
     fbq("track", "PageView");
@@ -38,24 +30,26 @@
   <style>
     :root { --vh: 100vh; }
     *{box-sizing:border-box}
-    html, body {
-      margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000;
-    }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
     .landing { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-    .landing-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 0; }
+    .landing-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 0; }
 
     .headline { position: absolute; top: 4%; left: 50%; transform: translateX(-50%); z-index: 2; text-align:center; }
     .headline img { width: 72vw; max-width: 420px; height: auto; }
 
+    /* === Initial: row/grid like last version === */
     .balloons {
       position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%);
       display: grid; grid-template-columns: repeat(4, min(22vw, 140px)); gap: min(4vw, 16px);
       z-index: 2; width: 92vw; max-width: 680px; justify-content: center; align-items: end;
     }
     .balloon {
-      position: relative; width: min(22vw, 140px); height: min(22vw, 140px);
-      background: center/contain no-repeat; filter: drop-shadow(0 6px 12px rgba(0,0,0,.25));
-      animation: float 3.2s ease-in-out infinite; cursor: pointer; transition: transform .25s ease;
+      position: relative;
+      width: min(22vw, 140px); height: min(22vw, 140px);
+      background: center/contain no-repeat;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.25));
+      cursor: pointer; transition: transform .25s ease;
+      transform-origin: center center; /* important for in-place scaling */
     }
     .balloon::after {
       content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
@@ -63,9 +57,25 @@
       filter: blur(2px);
     }
     .balloon:hover { transform: translateY(-4px) scale(1.03); }
-    .balloon.pop { animation: pop .45s ease forwards; }
-    .balloon.winlift { animation: lift 1.2s ease-in forwards; }
     .balloon.disabled { pointer-events: none; }
+
+    /* === After Play: free-fly field with absolute balloons and looping rise === */
+    .balloons.free-fly {
+      position: absolute; inset: 0; transform: none; width: 100%; max-width: none;
+      display: block; /* children will be absolute */
+    }
+    .balloons.free-fly .balloon {
+      position: absolute;
+      left: var(--x, 10%);
+      bottom: -20vh;
+      width: clamp(72px, 18vw, 140px);
+      height: clamp(72px, 18vw, 140px);
+      animation-name: riseLoop;
+      animation-duration: var(--speed, 12s);
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+      animation-delay: var(--delay, 0s);
+    }
 
     .play-button { position: absolute; left: 50%; transform: translateX(-50%); bottom: 22px; z-index: 2; }
     .play-button img, .action-button img { width: 320px; max-width: 82vw; height: auto; }
@@ -78,34 +88,55 @@
     .result { width: 360px; max-width: 92vw; margin-bottom: 14px; }
     .action-button { margin-top: 14px; }
 
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-    @keyframes pop { 0%{transform:scale(1);opacity:1} 100%{transform:scale(.6);opacity:0} }
-    @keyframes lift { 0%{ transform: translateY(0) scale(1);} 100%{ transform: translateY(-60vh) scale(1.1);} }
     @keyframes popupIn { 0%{transform:scale(.9);opacity:0} 50%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
+
+    /* === Looping bottom -> top === */
+    @keyframes riseLoop {
+      0%   { transform: translateY(0) scale(1); opacity: 0; }
+      5%   { opacity: 1; }
+      100% { transform: translateY(-120vh) scale(1); opacity: 1; }
+    }
+
+    /* === On click: scale in place (no fly up) === */
+    .balloon.scale-pop {
+      animation: scalePop 0.8s ease-out forwards;
+      z-index: 4;
+    }
+    @keyframes scalePop {
+      0%   { transform: scale(1);   opacity: 1; }
+      100% { transform: scale(6);   opacity: 1; }
+    }
 
     @media (max-height: 560px){ .balloons{ top:50%; } }
 
 
-    .balloon.flyup {
-	  animation: flyUpScale 1.2s ease-in forwards;
+    /* fly up first (no scale yet) */
+	.balloon.flyup {
+	  animation: flyUp 0.9s ease-in forwards;
+	  transform-origin: center;
+	}
+	@keyframes flyUp {
+	  0% { transform: translateY(0) scale(1); }
+	  100% { transform: translateY(-40vh) scale(1); }
 	}
 
-	@keyframes flyUpScale {
-	  0% { transform: translateY(0) scale(1); opacity: 1; }
-	  100% { transform: translateY(-60vh) scale(6); opacity: 1; }
+	/* AFTER result popup appears, scale from 1x → 4x while staying up */
+	.balloon.scale4 {
+	  animation: scaleTo4 0.6s ease-out forwards;
+	  transform-origin: center;
 	}
-
+	@keyframes scaleTo4 {
+	  0% { transform: translateY(-40vh) scale(1); }
+	  100% { transform: translateY(-40vh) scale(4); }
+	}
   </style>
 </head>
 <body>
   <div class="landing">
-    <!-- Background (pick BG1.webp or BG.webp as you prefer) -->
+    <!-- Background -->
     <img class="landing-bg" src="./assets/BG1.webp" alt="Background" />
 
-    <!-- Optional header showing the 168 USD art -->
-    <!-- <div class="headline"><img src="./assets/168 USD.webp" alt="168 USD" /></div> -->
-
-    <!-- 🎈 Balloons -->
+    <!-- 🎈 Balloons (start as a row) -->
     <div class="balloons" id="balloons">
       <div class="balloon" style="background-image:url('./assets/B1.gif')" aria-label="balloon"></div>
       <div class="balloon" style="background-image:url('./assets/B2.gif')" aria-label="balloon"></div>
@@ -126,104 +157,143 @@
   <!-- 🎉 Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
 
-<script>
-  const balloons = Array.from(document.querySelectorAll('.balloon'));
-  const playBtn = document.getElementById('play-button');
-  const popup = document.getElementById('popup');
-  const resultImg = document.getElementById('resultImg');
-  const actionButton = document.getElementById('actionButton');
+  <script>
+    const balloons = Array.from(document.querySelectorAll('.balloon'));
+    const balloonsWrap = document.getElementById('balloons');
+    const playBtn = document.getElementById('play-button');
+    const popup = document.getElementById('popup');
+    const resultImg = document.getElementById('resultImg');
+    const actionButton = document.getElementById('actionButton');
 
-  let playCount = 0;
+    let playCount = 0;
 
-  function disableAll() { balloons.forEach(b => b.classList.add('disabled')); }
-  function enableAll() { balloons.forEach(b => b.classList.remove('disabled', 'flyup')); }
-  function showPopup() {
-    popup.style.display = 'flex';
-    requestAnimationFrame(() => popup.classList.add('show'));
-  }
-  function hidePopup() {
-    popup.classList.remove('show');
-    setTimeout(() => (popup.style.display = 'none'), 400);
-  }
-  function celebrateLoop() {
-    let go = true;
-    (function fire() {
-      if (!go) return;
-      if (typeof confetti === 'function') {
-        confetti({ particleCount: 70, spread: 360, startVelocity: 42, ticks: 80, origin: { y: 0.55 } });
-      }
-      setTimeout(fire, 1800);
-    })();
-    actionButton.addEventListener('click', () => go = false, { once: true });
-  }
+    function disableAll() { balloons.forEach(b => b.classList.add('disabled')); }
+    function enableAll() { balloons.forEach(b => b.classList.remove('disabled', 'scale-pop')); }
 
-  playBtn.addEventListener('click', () => {
-    if (playCount >= 2) return;
-    playCount++;
-    playBtn.style.display = 'none';
-    enableAll();
-    if (typeof fbq === 'function') {
-      fbq('trackCustom', 'Play', { content_name: 'Play Button Click - Balloon' });
+    function showPopup() {
+      popup.style.display = 'flex';
+      requestAnimationFrame(() => popup.classList.add('show'));
     }
-  });
+    function hidePopup() {
+      popup.classList.remove('show');
+      setTimeout(() => (popup.style.display = 'none'), 400);
+    }
+    function celebrateLoop() {
+      let go = true;
+      (function fire() {
+        if (!go) return;
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 70, spread: 360, startVelocity: 42, ticks: 80, origin: { y: 0.55 } });
+        }
+        setTimeout(fire, 1800);
+      })();
+      actionButton.addEventListener('click', () => go = false, { once: true });
+    }
 
-  balloons.forEach(b => {
-    b.addEventListener('click', () => {
-      if (playCount === 0) return;
+    /* === Randomize helpers for free-fly mode === */
+    function seedBalloon(b) {
+      const x = Math.random() * 80 + 10;                 // 10%..90%
+      const speed = (Math.random() * 6 + 9).toFixed(2) + 's'; // 9s..15s
+      const delay = (Math.random() * 3).toFixed(2) + 's';     // 0..3s
+      b.style.setProperty('--x', x + '%');
+      b.style.setProperty('--speed', speed);
+      b.style.setProperty('--delay', delay);
+    }
+    function startFreeFly() {
+      balloonsWrap.classList.add('free-fly');
+      balloons.forEach(b => {
+        seedBalloon(b);
+        // re-lane each full loop:
+        b.addEventListener('animationiteration', () => {
+          const x = Math.random() * 80 + 10;
+          b.style.setProperty('--x', x + '%');
+        }, { passive: true });
+      });
+    }
 
-      disableAll();
-      b.classList.add('flyup'); // trigger fly up & scale animation
-
-      const ANIM_MS = 1200; // match CSS animation duration
-
-      if (playCount === 1) {
-        // Fail after flying
-        setTimeout(() => {
-          resultImg.src = './assets/fail.webp';
-          actionButton.innerHTML = `
-            <button id="try-again-btn" style="background:none;border:none;padding:0;">
-              <img src="./assets/try bt.gif" alt="Try Again" />
-            </button>`;
-          showPopup();
-          if (typeof confetti === 'function') {
-            confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
-          }
-          document.getElementById('try-again-btn').addEventListener('click', () => {
-            if (typeof fbq === 'function') {
-              fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
-            }
-          });
-        }, ANIM_MS);
-      } else if (playCount === 2) {
-        // Win after flying
-        setTimeout(() => {
-          resultImg.src = './assets/win20.webp';
-          actionButton.innerHTML = `
-            <a id="claim-button" href="https://t.me/m/8efXjOmkY2U9" target="_blank" rel="noopener">
-              <img src="./assets/claim bt.gif" alt="Claim" />
-            </a>`;
-          showPopup();
-          celebrateLoop();
-          document.getElementById('claim-button').addEventListener('click', () => {
-            if (typeof fbq === 'function') {
-              fbq('track', 'Purchase', { value: 2.0, currency: 'USD', content_name: 'Claim Button - Balloon' });
-            }
-          });
-        }, ANIM_MS);
+    playBtn.addEventListener('click', () => {
+      if (playCount >= 2) return;
+      playCount++;
+      playBtn.style.display = 'none';
+      enableAll();
+      startFreeFly();  // switch to absolute + looping mode AFTER Play
+      if (typeof fbq === 'function') {
+        fbq('trackCustom', 'Play', { content_name: 'Play Button Click - Balloon' });
       }
     });
-  });
 
-  actionButton.addEventListener('click', () => {
-    hidePopup();
-    if (playCount === 1) {
-      setTimeout(() => playBtn.style.display = 'block', 400);
-    }
-  });
-</script>
+    balloons.forEach(b => {
+      b.addEventListener('click', () => {
+        if (playCount === 0) return; // ignore clicks before Play
 
+        disableAll(); // if you want others to keep floating, remove this line
 
+        // Freeze this balloon exactly where it is now (relative to wrapper)
+        const wrapRect = balloonsWrap.getBoundingClientRect();
+        const r = b.getBoundingClientRect();
 
+        // Stop the looping rise immediately
+        b.style.animation = 'none';
 
+        // Convert to absolute coordinates within the wrapper
+        b.style.bottom = '';                               // ensure top takes effect
+        b.style.top = (r.top - wrapRect.top) + 'px';
+        b.style.left = (r.left - wrapRect.left) + 'px';
+        b.style.position = 'absolute';
+        b.style.transform = 'none';                        // start scale from 1
+        b.style.zIndex = '4';
+
+        // Force reflow so the next animation starts cleanly
+        void b.offsetWidth;
+
+        // Scale in place (no fly-up)
+        b.classList.add('scale-pop');
+
+        const ANIM_MS = 800; // match @keyframes scalePop
+
+        if (playCount === 1) {
+          setTimeout(() => {
+            resultImg.src = './assets/fail.webp';
+            actionButton.innerHTML = `
+              <button id="try-again-btn" style="background:none;border:none;padding:0;">
+                <img src="./assets/try bt.gif" alt="Try Again" />
+              </button>`;
+            showPopup();
+            if (typeof confetti === 'function') {
+              confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
+            }
+            document.getElementById('try-again-btn').addEventListener('click', () => {
+              if (typeof fbq === 'function') {
+                fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
+              }
+            });
+          }, ANIM_MS);
+        } else if (playCount === 2) {
+          setTimeout(() => {
+            resultImg.src = './assets/win20.webp';
+            actionButton.innerHTML = `
+              <a id="claim-button" href="https://t.me/m/8efXjOmkY2U9" target="_blank" rel="noopener">
+                <img src="./assets/claim bt.gif" alt="Claim" />
+              </a>`;
+            showPopup();
+            celebrateLoop();
+            document.getElementById('claim-button').addEventListener('click', () => {
+              if (typeof fbq === 'function') {
+                fbq('track', 'Purchase', { value: 2.0, currency: 'USD', content_name: 'Claim Button - Balloon' });
+              }
+            });
+          }, ANIM_MS);
+        }
+      });
+    });
+
+    actionButton.addEventListener('click', () => {
+      hidePopup();
+      if (playCount === 1) {
+        // show Play again to start second attempt
+        setTimeout(() => playBtn.style.display = 'block', 400);
+      }
+    });
+  </script>
 </body>
 </html>
