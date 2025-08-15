@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Balloon Loading Game</title>
   <link rel="icon" href="./assets/hot-air-balloon.ico" type="image/x-icon" />
 
@@ -30,72 +30,59 @@
     :root { --vh: 100vh; }
     *{box-sizing:border-box}
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-    .landing { position: relative; width: 100vw; height: 100vh; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+    .landing { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
     .landing-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 0; }
 
     .headline { position: absolute; top: 4%; left: 50%; transform: translateX(-50%); z-index: 2; text-align:center; }
     .headline img { width: 72vw; max-width: 420px; height: auto; }
 
+    /* === Initial: row/grid like your version === */
     .balloons {
       position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%);
       display: grid; grid-template-columns: repeat(4, min(22vw, 140px)); gap: min(4vw, 16px);
       z-index: 2; width: 92vw; max-width: 680px; justify-content: center; align-items: end;
-      touch-action: manipulation; /* ✅ better touch */
     }
-
     .balloon {
       position: relative;
-      width: clamp(72px, 18vw, 140px);
-      height: clamp(72px, 18vw, 140px);
+      width: min(22vw, 140px); height: min(22vw, 140px);
       background: center/contain no-repeat;
       filter: drop-shadow(0 6px 12px rgba(0,0,0,.25));
-      cursor: pointer; transition: transform .22s ease;
-      transform-origin: center center;
-      -webkit-touch-callout: none; user-select: none;
+      cursor: pointer; transition: transform .25s ease;
+      transform-origin: center center; /* important for in-place scaling */
     }
-
-    /* ✅ Invisible hitbox for easier taps on mobile (about 1.6× area) */
-    .balloon::before{
-      content:""; position:absolute; inset: -18%;
-      /* Bigger clickable area without changing visual size */
-    }
-
     .balloon::after {
       content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
       width: 50%; height: 10px; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,0));
-      filter: blur(2px); pointer-events: none;
+      filter: blur(2px);
     }
-
-    /* ✅ Only show hover raise on devices that have hover (won't fight touch) */
-    @media (hover:hover) and (pointer:fine){
-      .balloon:hover { transform: translateY(-4px) scale(1.03); }
-    }
-
+    .balloon:hover { transform: translateY(-4px) scale(1.03); }
     .balloon.disabled { pointer-events: none; }
 
-    /* Free-fly mode */
+    /* === After Play: free-fly field with absolute balloons and LOOPING rise === */
     .balloons.free-fly {
       position: absolute; inset: 0; transform: none; width: 100%; max-width: none;
-      display: block;
+      display: block; /* children will be absolute */
     }
     .balloons.free-fly .balloon {
       position: absolute;
       left: var(--x, 10%);
       bottom: -20vh;
+      width: clamp(72px, 18vw, 140px);
+      height: clamp(72px, 18vw, 140px);
+      /* ▼ NEW: decelerating bottom→top motion (fast→slow), loops forever */
       animation-name: riseLoopDecel;
       animation-duration: var(--speed, 12s);
-      animation-timing-function: linear;
+      animation-timing-function: linear; /* timing is baked into keyframe spacing */
       animation-iteration-count: infinite;
       animation-delay: var(--delay, 0s);
     }
 
-    .play-button { position: absolute; left: 50%; transform: translateX(-50%); bottom: 22px; z-index: 2; display:none; }
+    .play-button { position: absolute; left: 50%; transform: translateX(-50%); bottom: 22px; z-index: 2; }
     .play-button img, .action-button img { width: 320px; max-width: 82vw; height: auto; }
 
     .popup {
       position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: rgba(0,0,0,.68); z-index: 3; opacity: 0; transform: scale(.9); pointer-events: none;
-      -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
     }
     .popup.show { pointer-events: auto; animation: popupIn .8s ease forwards; }
     .result { width: 360px; max-width: 92vw; margin-bottom: 14px; }
@@ -103,14 +90,20 @@
 
     @keyframes popupIn { 0%{transform:scale(.9);opacity:0} 50%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
 
+    /* === NEW: Decelerating loop (roughly “10→8→6→2” speed) ===
+       We cover most distance early, then slow down toward the top. */
     @keyframes riseLoopDecel {
       0%   { transform: translateY(0) scale(1); opacity: 0; }
       5%   { opacity: 1; }
+      /* fast first segment (cover ~70% height in just 20% time) */
       20%  { transform: translateY(-70vh) scale(1); }
+      /* then slow down (next 40% time covers only ~35vh) */
       60%  { transform: translateY(-105vh) scale(1); }
+      /* final crawl (last 40% time covers remaining ~15vh) */
       100% { transform: translateY(-120vh) scale(1); opacity: 1; }
     }
 
+    /* === On click: scale from 1× → 4× in place === */
     .balloon.scale-pop {
       animation: scalePop 0.7s ease-out forwards;
       z-index: 4;
@@ -125,9 +118,9 @@
 </head>
 <body>
   <div class="landing">
-    <img class="landing-bg" src="./assets/BGnew.webp" alt="Background" />
+    <img class="landing-bg" src="./assets/BG1.webp" alt="Background" />
 
-    <!-- 🎈 Balloons -->
+    <!-- 🎈 Balloons (start as a row) -->
     <div class="balloons" id="balloons">
       <div class="balloon" style="background-image:url('./assets/B1.gif')" aria-label="balloon"></div>
       <div class="balloon" style="background-image:url('./assets/B2.gif')" aria-label="balloon"></div>
@@ -135,7 +128,7 @@
       <div class="balloon" style="background-image:url('./assets/B1.gif')" aria-label="balloon"></div>
     </div>
 
-    <!-- ▶️ Play CTA (kept but hidden) -->
+    <!-- ▶️ Play CTA -->
     <div class="play-button"><img id="play-button" src="./assets/play bt.gif" alt="Play Now" /></div>
 
     <!-- 🔔 Popup -->
@@ -144,11 +137,6 @@
       <div class="action-button" id="actionButton"></div>
     </div>
   </div>
-
-  <!-- 🔊 SFX (replace with your actual files) -->
-  <audio id="sfx-pop"  src="./assets/sfx/pop.mp3"  preload="auto"></audio>
-  <audio id="sfx-win"  src="./assets/sfx/win.mp3"  preload="auto"></audio>
-  <audio id="sfx-lose" src="./assets/sfx/lose.mp3" preload="auto"></audio>
 
   <!-- 🎉 Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -160,35 +148,7 @@
     const resultImg = document.getElementById('resultImg');
     const actionButton = document.getElementById('actionButton');
 
-    // 🔊 Audio helpers
-    const sPop  = document.getElementById('sfx-pop');
-    const sWin  = document.getElementById('sfx-win');
-    const sLose = document.getElementById('sfx-lose');
-
-    // make a safe play function that restarts sound and ignores errors
-    function playSfx(audioEl, volume = 1) {
-      if (!audioEl) return;
-      try {
-        audioEl.pause();
-        audioEl.currentTime = 0;
-        audioEl.volume = volume;
-        audioEl.play().catch(()=>{ /* autoplay might block until first gesture */ });
-      } catch(e){}
-    }
-
-    // ensure first gesture unlocks audio on iOS/Android
-    let audioUnlocked = false;
-    function unlockAudioOnce() {
-      if (audioUnlocked) return;
-      audioUnlocked = true;
-      // Try playing a very short, silent-ish sound (or the pop quietly)
-      playSfx(sPop, 0.001);
-      setTimeout(()=>{ try{ sPop.pause(); sPop.currentTime = 0; }catch(e){} }, 80);
-    }
-    window.addEventListener('pointerdown', unlockAudioOnce, { once:true, passive:true });
-
-    // Start with 1 so first tap = attempt one
-    let playCount = 1;
+    let playCount = 0;
 
     function showPopup() {
       popup.style.display = 'flex';
@@ -196,7 +156,7 @@
     }
     function hidePopup() {
       popup.classList.remove('show');
-      setTimeout(() => (popup.style.display = 'none'), 300);
+      setTimeout(() => (popup.style.display = 'none'), 400);
     }
     function celebrateLoop() {
       let go = true;
@@ -210,10 +170,10 @@
       actionButton.addEventListener('click', () => go = false, { once: true });
     }
 
-    /* Randomize helpers for free-fly mode */
+    /* === Randomize helpers for free-fly mode === */
     function seedBalloon(b) {
       const x = Math.random() * 80 + 10;                  // 10%..90%
-      const speed = (Math.random() * 6 + 9).toFixed(2) + 's'; // 9s..15s
+      const speed = (Math.random() * 6 + 9).toFixed(2) + 's'; // 9s..15s base duration
       const delay = (Math.random() * 3).toFixed(2) + 's';  // 0..3s
       b.style.setProperty('--x', x + '%');
       b.style.setProperty('--speed', speed);
@@ -221,8 +181,10 @@
     }
     function startFreeFly() {
       balloonsWrap.classList.add('free-fly');
+      // absolute-position & animate existing balloons
       Array.from(balloonsWrap.querySelectorAll('.balloon')).forEach(b => {
         seedBalloon(b);
+        // each loop, re-lane horizontally
         b.addEventListener('animationiteration', () => {
           const x = Math.random() * 80 + 10;
           b.style.setProperty('--x', x + '%');
@@ -230,28 +192,27 @@
       });
     }
 
-    // 🔁 AUTOSTART on load
-    window.addEventListener('DOMContentLoaded', () => {
-      if (playBtn) playBtn.style.display = 'none';
-      startFreeFly();
+    playBtn.addEventListener('click', () => {
+      if (playCount >= 2) return;
+      playCount++;
+      playBtn.style.display = 'none';
+      startFreeFly();  // switch to absolute + looping mode AFTER Play
       if (typeof fbq === 'function') {
-        fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
+        fbq('trackCustom', 'Play', { content_name: 'Play Button Click - Balloon' });
       }
-    }, { passive:true });
+    });
 
-    // Use pointer events for best cross-device behavior
-    balloonsWrap.addEventListener('pointerdown', (e) => {
+    // Delegate clicks so newly added/remaining balloons still work after removals
+    balloonsWrap.addEventListener('click', (e) => {
       const b = e.target.closest('.balloon');
       if (!b) return;
+      if (playCount === 0) return; // ignore clicks before Play
       if (b.classList.contains('disabled')) return;
 
-      // 🔊 pop immediately on touch/click
-      playSfx(sPop, 0.9);
-
-      // Prevent double taps on same balloon
+      // Prevent double clicks on the same balloon
       b.classList.add('disabled');
 
-      // Freeze balloon where it is now
+      // Freeze this balloon exactly where it is now (relative to wrapper)
       const wrapRect = balloonsWrap.getBoundingClientRect();
       const r = b.getBoundingClientRect();
 
@@ -259,11 +220,11 @@
       b.style.animation = 'none';
 
       // Convert to absolute coordinates within the wrapper
-      b.style.bottom = '';
+      b.style.bottom = '';                               // ensure top takes effect
       b.style.top = (r.top - wrapRect.top) + 'px';
       b.style.left = (r.left - wrapRect.left) + 'px';
       b.style.position = 'absolute';
-      b.style.transform = 'none';
+      b.style.transform = 'none';                        // start scale from 1
       b.style.zIndex = '4';
 
       // Force reflow so the next animation starts cleanly
@@ -272,16 +233,16 @@
       // Scale in place from 1× → 4×
       b.classList.add('scale-pop');
 
-      const ANIM_MS = 700;
+      const ANIM_MS = 700; // match @keyframes scalePop
 
       // After the scale finishes, remove the balloon from DOM
       const removeAfterScale = () => {
         b.removeEventListener('animationend', removeAfterScale);
-        b.remove();
+        b.remove(); // 🔥 remove clicked balloon
       };
       b.addEventListener('animationend', removeAfterScale, { once: true });
 
-      // Show outcome + 🔊 SFX
+      // Show outcome
       if (playCount === 1) {
         setTimeout(() => {
           resultImg.src = './assets/fail.webp';
@@ -290,7 +251,6 @@
               <img src="./assets/try bt.gif" alt="Try Again" />
             </button>`;
           showPopup();
-          playSfx(sLose, 0.9); // lose sound
           if (typeof confetti === 'function') {
             confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
           }
@@ -298,10 +258,8 @@
             if (typeof fbq === 'function') {
               fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
             }
-            hidePopup();
           }, { once: true });
         }, ANIM_MS);
-        playCount = 2;
       } else if (playCount === 2) {
         setTimeout(() => {
           resultImg.src = './assets/win20.webp';
@@ -310,7 +268,6 @@
               <img src="./assets/claim bt.gif" alt="Claim" />
             </a>`;
           showPopup();
-          playSfx(sWin, 0.9); // win sound
           celebrateLoop();
           const claimBtn = document.getElementById('claim-button');
           if (claimBtn) {
@@ -322,12 +279,14 @@
           }
         }, ANIM_MS);
       }
-    }, { passive: true });
+    });
 
-    // Close popup if user taps outside explicit buttons (fallback)
-    actionButton.addEventListener('click', (e) => {
-      const target = e.target.closest('a,button');
-      if (!target) hidePopup();
+    actionButton.addEventListener('click', () => {
+      hidePopup();
+      if (playCount === 1) {
+        // show Play again to start second attempt
+        setTimeout(() => playBtn.style.display = 'block', 400);
+      }
     });
   </script>
 </body>
