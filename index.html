@@ -10,11 +10,8 @@
   <script>
     !(function (f, b, e, v, n, t, s) {
       if (f.fbq) return;
-      n = f.fbq = function () {
-        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(n);
-      };
-      if (!f._fbq) f._fbq = n;
-      n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
+      n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(n); };
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
       t = b.createElement(e); t.async = !0; t.src = v;
       s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
     })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
@@ -38,9 +35,9 @@
 
     .balloons {
       position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%);
-      display: grid; grid-template-columns: repeat(4, min(22vw, 140px)); gap: min(4vw, 16px);
+      display: grid; grid-template-columns: repeat(4, clamp(72px, 20vw, 250px)); gap: min(4vw, 16px);
       z-index: 2; width: 92vw; max-width: 680px; justify-content: center; align-items: end;
-      touch-action: manipulation; /* ✅ better touch */
+      touch-action: manipulation;
     }
 
     .balloon {
@@ -54,29 +51,21 @@
       -webkit-touch-callout: none; user-select: none;
     }
 
-    /* ✅ Invisible hitbox for easier taps on mobile (about 1.6× area) */
-    .balloon::before{
-      content:""; position:absolute; inset: -18%;
-      /* Bigger clickable area without changing visual size */
-    }
-
+    /* bigger invisible hitbox for touch */
+    .balloon::before { content:""; position:absolute; inset:-18%; }
     .balloon::after {
       content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
       width: 50%; height: 10px; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,0));
       filter: blur(2px); pointer-events: none;
     }
-
-    /* ✅ Only show hover raise on devices that have hover (won't fight touch) */
     @media (hover:hover) and (pointer:fine){
       .balloon:hover { transform: translateY(-4px) scale(1.03); }
     }
-
     .balloon.disabled { pointer-events: none; }
 
-    /* Free-fly mode */
+    /* free-fly mode */
     .balloons.free-fly {
-      position: absolute; inset: 0; transform: none; width: 100%; max-width: none;
-      display: block;
+      position: absolute; inset: 0; transform: none; width: 100%; max-width: none; display: block;
     }
     .balloons.free-fly .balloon {
       position: absolute;
@@ -84,7 +73,7 @@
       bottom: -20vh;
       animation-name: riseLoopDecel;
       animation-duration: var(--speed, 12s);
-      animation-timing-function: linear;
+      animation-timing-function: linear; /* keyframe spacing encodes speeds */
       animation-iteration-count: infinite;
       animation-delay: var(--delay, 0s);
     }
@@ -103,38 +92,34 @@
 
     @keyframes popupIn { 0%{transform:scale(.9);opacity:0} 50%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
 
+    /* === 10 → 8 → 8 → 12 speed profile over equal time quarters ===
+       Distances proportional to speeds (10,8,8,12) → totals 38 parts.
+       Cumulative distances of a 120vh rise at 25%, 50%, 75%:
+       31.6vh, 56.8vh, 82.1vh. */
     @keyframes riseLoopDecel {
       0%   { transform: translateY(0) scale(1); opacity: 0; }
       5%   { opacity: 1; }
-      20%  { transform: translateY(-70vh) scale(1); }
-      60%  { transform: translateY(-105vh) scale(1); }
-      100% { transform: translateY(-120vh) scale(1); opacity: 1; }
+      25%  { transform: translateY(-31.6vh); }  /* fast */
+      50%  { transform: translateY(-56.8vh); }  /* slower */
+      75%  { transform: translateY(-82.1vh); }  /* same slower */
+      100% { transform: translateY(-120vh); opacity: 1; } /* fastest end sprint */
     }
 
-    .balloon.scale-pop {
-      animation: scalePop 0.7s ease-out forwards;
-      z-index: 4;
-    }
-    @keyframes scalePop {
-      0%   { transform: scale(1);   opacity: 1; }
-      100% { transform: scale(4);   opacity: 1; }
-    }
+    .balloon.scale-pop { animation: scalePop 0.7s ease-out forwards; z-index: 4; }
+    @keyframes scalePop { 0% { transform: scale(1); } 100% { transform: scale(4); } }
 
     @media (max-height: 560px){ .balloons{ top:50%; } }
 
-    /* Bigger balloons on mobile / Telegram webview */
-	@media (max-width: 600px) {
-	  .balloon {
-	    width:  clamp(120px, 24vw, 275px);
-	    height: clamp(120px, 24vw, 275px);
-	  }
-	  /* Make the grid cells match the bigger balloons (seen briefly at load) */
-	  .balloons {
-	    grid-template-columns: repeat(4, clamp(90px, 24vw, 175px));
-	  }
-	}
-
-
+    /* bigger balloons on mobile / Telegram webview */
+    @media (max-width: 600px) {
+      .balloon {
+        width:  clamp(140px, 24vw, 275px);
+        height: clamp(140px, 24vw, 275px);
+      }
+      .balloons {
+        grid-template-columns: repeat(4, clamp(140px, 24vw, 275px));
+      }
+    }
   </style>
 </head>
 <body>
@@ -147,6 +132,8 @@
       <div class="balloon" style="background-image:url('./assets/B2.gif')" aria-label="balloon"></div>
       <div class="balloon" style="background-image:url('./assets/B3.gif')" aria-label="balloon"></div>
       <div class="balloon" style="background-image:url('./assets/B1.gif')" aria-label="balloon"></div>
+      <div class="balloon" style="background-image:url('./assets/B2.gif')" aria-label="balloon"></div>
+      <div class="balloon" style="background-image:url('./assets/B3.gif')" aria-label="balloon"></div>
     </div>
 
     <!-- ▶️ Play CTA (kept but hidden) -->
@@ -159,7 +146,7 @@
     </div>
   </div>
 
-  <!-- 🔊 SFX (replace with your actual files) -->
+  <!-- 🔊 SFX -->
   <audio id="sfx-pop"  src="./assets/sfx/pop.mp3"  preload="auto"></audio>
   <audio id="sfx-win"  src="./assets/sfx/win.mp3"  preload="auto"></audio>
   <audio id="sfx-lose" src="./assets/sfx/lose.mp3" preload="auto"></audio>
@@ -179,39 +166,25 @@
     const sWin  = document.getElementById('sfx-win');
     const sLose = document.getElementById('sfx-lose');
 
-    // make a safe play function that restarts sound and ignores errors
     function playSfx(audioEl, volume = 1) {
       if (!audioEl) return;
-      try {
-        audioEl.pause();
-        audioEl.currentTime = 0;
-        audioEl.volume = volume;
-        audioEl.play().catch(()=>{ /* autoplay might block until first gesture */ });
-      } catch(e){}
+      try { audioEl.pause(); audioEl.currentTime = 0; audioEl.volume = volume; audioEl.play().catch(()=>{}); } catch(e){}
     }
 
-    // ensure first gesture unlocks audio on iOS/Android
+    // unlock audio on first gesture
     let audioUnlocked = false;
     function unlockAudioOnce() {
-      if (audioUnlocked) return;
-      audioUnlocked = true;
-      // Try playing a very short, silent-ish sound (or the pop quietly)
-      playSfx(sPop, 0.001);
-      setTimeout(()=>{ try{ sPop.pause(); sPop.currentTime = 0; }catch(e){} }, 80);
+      if (audioUnlocked) return; audioUnlocked = true;
+      playSfx(sPop, 0.001); setTimeout(()=>{ try{ sPop.pause(); sPop.currentTime = 0; }catch(e){} }, 80);
     }
     window.addEventListener('pointerdown', unlockAudioOnce, { once:true, passive:true });
 
-    // Start with 1 so first tap = attempt one
+    // first tap = attempt one
     let playCount = 1;
 
-    function showPopup() {
-      popup.style.display = 'flex';
-      requestAnimationFrame(() => popup.classList.add('show'));
-    }
-    function hidePopup() {
-      popup.classList.remove('show');
-      setTimeout(() => (popup.style.display = 'none'), 300);
-    }
+    function showPopup() { popup.style.display = 'flex'; requestAnimationFrame(() => popup.classList.add('show')); }
+    function hidePopup() { popup.classList.remove('show'); setTimeout(() => (popup.style.display = 'none'), 300); }
+
     function celebrateLoop() {
       let go = true;
       (function fire() {
@@ -224,11 +197,11 @@
       actionButton.addEventListener('click', () => go = false, { once: true });
     }
 
-    /* Randomize helpers for free-fly mode */
+    /* randomize helpers for free-fly mode */
     function seedBalloon(b) {
-      const x = Math.random() * 80 + 10;                  // 10%..90%
-      const speed = (Math.random() * 6 + 9).toFixed(2) + 's'; // 9s..15s
-      const delay = (Math.random() * 3).toFixed(2) + 's';  // 0..3s
+      const x = Math.random() * 80 + 10;                       // 10%..90%
+      const speed = (Math.random() * 6 + 9).toFixed(2) + 's';  // 9s..15s
+      const delay = (Math.random() * 3).toFixed(2) + 's';      // 0..3s
       b.style.setProperty('--x', x + '%');
       b.style.setProperty('--speed', speed);
       b.style.setProperty('--delay', delay);
@@ -244,35 +217,25 @@
       });
     }
 
-    // 🔁 AUTOSTART on load
+    // autostart
     window.addEventListener('DOMContentLoaded', () => {
       if (playBtn) playBtn.style.display = 'none';
       startFreeFly();
-      if (typeof fbq === 'function') {
-        fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
-      }
+      if (typeof fbq === 'function') fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
     }, { passive:true });
 
-    // Use pointer events for best cross-device behavior
+    // main interaction
     balloonsWrap.addEventListener('pointerdown', (e) => {
       const b = e.target.closest('.balloon');
-      if (!b) return;
-      if (b.classList.contains('disabled')) return;
+      if (!b || b.classList.contains('disabled')) return;
 
-      // 🔊 pop immediately on touch/click
       playSfx(sPop, 0.9);
-
-      // Prevent double taps on same balloon
       b.classList.add('disabled');
 
-      // Freeze balloon where it is now
       const wrapRect = balloonsWrap.getBoundingClientRect();
       const r = b.getBoundingClientRect();
 
-      // Stop the looping rise immediately
       b.style.animation = 'none';
-
-      // Convert to absolute coordinates within the wrapper
       b.style.bottom = '';
       b.style.top = (r.top - wrapRect.top) + 'px';
       b.style.left = (r.left - wrapRect.left) + 'px';
@@ -280,22 +243,13 @@
       b.style.transform = 'none';
       b.style.zIndex = '4';
 
-      // Force reflow so the next animation starts cleanly
-      void b.offsetWidth;
-
-      // Scale in place from 1× → 4×
+      void b.offsetWidth; // reflow
       b.classList.add('scale-pop');
 
       const ANIM_MS = 700;
-
-      // After the scale finishes, remove the balloon from DOM
-      const removeAfterScale = () => {
-        b.removeEventListener('animationend', removeAfterScale);
-        b.remove();
-      };
+      const removeAfterScale = () => { b.removeEventListener('animationend', removeAfterScale); b.remove(); };
       b.addEventListener('animationend', removeAfterScale, { once: true });
 
-      // Show outcome + 🔊 SFX
       if (playCount === 1) {
         setTimeout(() => {
           resultImg.src = './assets/fail.webp';
@@ -304,14 +258,10 @@
               <img src="./assets/try bt.gif" alt="Try Again" />
             </button>`;
           showPopup();
-          playSfx(sLose, 0.9); // lose sound
-          if (typeof confetti === 'function') {
-            confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
-          }
+          playSfx(sLose, 0.9);
+          if (typeof confetti === 'function') confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
           document.getElementById('try-again-btn').addEventListener('click', () => {
-            if (typeof fbq === 'function') {
-              fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
-            }
+            if (typeof fbq === 'function') fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
             hidePopup();
           }, { once: true });
         }, ANIM_MS);
@@ -324,7 +274,7 @@
               <img src="./assets/claim bt.gif" alt="Claim" />
             </a>`;
           showPopup();
-          playSfx(sWin, 0.9); // win sound
+          playSfx(sWin, 0.9);
           celebrateLoop();
           const claimBtn = document.getElementById('claim-button');
           if (claimBtn) {
@@ -338,10 +288,8 @@
       }
     }, { passive: true });
 
-    // Close popup if user taps outside explicit buttons (fallback)
     actionButton.addEventListener('click', (e) => {
-      const target = e.target.closest('a,button');
-      if (!target) hidePopup();
+      const target = e.target.closest('a,button'); if (!target) hidePopup();
     });
   </script>
 </body>
