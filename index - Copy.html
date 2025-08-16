@@ -51,8 +51,8 @@
       -webkit-touch-callout: none; user-select: none;
     }
 
-    /* bigger invisible hitbox for touch */
-    .balloon::before { content:""; position:absolute; inset:-18%; }
+    /* slightly larger invisible hitbox for touch (kept modest for accuracy) */
+    .balloon::before { content:""; position:absolute; inset:-10%; }
     .balloon::after {
       content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
       width: 50%; height: 10px; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,0));
@@ -179,8 +179,12 @@
     }
     window.addEventListener('pointerdown', unlockAudioOnce, { once:true, passive:true });
 
-    // first tap = attempt one
-    let playCount = 1;
+    // game state
+    let playCount = 1;          // 1st click -> fail, 2nd click -> win
+    let inputLocked = false;    // prevents multi-trigger/multi-touch
+
+    function lockInput(){ inputLocked = true; }
+    function unlockInput(){ inputLocked = false; }
 
     function showPopup() { popup.style.display = 'flex'; requestAnimationFrame(() => popup.classList.add('show')); }
     function hidePopup() { popup.classList.remove('show'); setTimeout(() => (popup.style.display = 'none'), 300); }
@@ -224,10 +228,41 @@
       if (typeof fbq === 'function') fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
     }, { passive:true });
 
-    // main interaction
+    // ===== Strict, accurate click handling =====
+    // Only count a click if: (1) primary pointer, (2) release on SAME balloon,
+    // and (3) total move distance <= 12px (avoid drags/scrolls/accidental touches).
     balloonsWrap.addEventListener('pointerdown', (e) => {
+      if (inputLocked || popup.classList.contains('show')) return;
+      if (!e.isPrimary) return;
+
       const b = e.target.closest('.balloon');
       if (!b || b.classList.contains('disabled')) return;
+
+      // prevent synthetic "click" after pointer sequence on some browsers
+      e.preventDefault();
+
+      const startX = e.clientX, startY = e.clientY, pid = e.pointerId;
+
+      const onPointerUp = (ev) => {
+        if (ev.pointerId !== pid) return; // same pointer only
+        window.removeEventListener('pointerup', onPointerUp, true);
+
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (Math.hypot(dx, dy) > 12) return; // treat as drag/swipe
+
+        const upEl = document.elementFromPoint(ev.clientX, ev.clientY);
+        const bUp = upEl ? upEl.closest('.balloon') : null;
+        if (bUp !== b) return; // must release on the SAME balloon
+
+        handleBalloonClick(b);
+      };
+
+      window.addEventListener('pointerup', onPointerUp, { once: true, capture: true });
+    }, { passive: false });
+
+    function handleBalloonClick(b) {
+      if (inputLocked) return;
+      lockInput();
 
       playSfx(sPop, 0.9);
       b.classList.add('disabled');
@@ -235,6 +270,7 @@
       const wrapRect = balloonsWrap.getBoundingClientRect();
       const r = b.getBoundingClientRect();
 
+      // Freeze balloon position under finger
       b.style.animation = 'none';
       b.style.bottom = '';
       b.style.top = (r.top - wrapRect.top) + 'px';
@@ -247,8 +283,6 @@
       b.classList.add('scale-pop');
 
       const ANIM_MS = 700;
-      const removeAfterScale = () => { b.removeEventListener('animationend', removeAfterScale); b.remove(); };
-      b.addEventListener('animationend', removeAfterScale, { once: true });
 
       if (playCount === 1) {
         setTimeout(() => {
@@ -259,14 +293,23 @@
             </button>`;
           showPopup();
           playSfx(sLose, 0.9);
-          if (typeof confetti === 'function') confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
+
+          // remove balloon after popup appears
+          b.remove();
+
+          if (typeof confetti === 'function') {
+            confetti({ particleCount: 40, spread: 80, origin: { y: 0.55 } });
+          }
+
           document.getElementById('try-again-btn').addEventListener('click', () => {
             if (typeof fbq === 'function') fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
             hidePopup();
+            unlockInput(); // allow next click (round 2)
           }, { once: true });
         }, ANIM_MS);
+
         playCount = 2;
-      } else if (playCount === 2) {
+      } else {
         setTimeout(() => {
           resultImg.src = './assets/win20.webp';
           actionButton.innerHTML = `
@@ -276,20 +319,34 @@
           showPopup();
           playSfx(sWin, 0.9);
           celebrateLoop();
+
+          // remove balloon after popup appears
+          b.remove();
+
           const claimBtn = document.getElementById('claim-button');
           if (claimBtn) {
             claimBtn.addEventListener('click', () => {
               if (typeof fbq === 'function') {
                 fbq('track', 'Purchase', { value: 2.0, currency: 'USD', content_name: 'Claim Button - Balloon' });
               }
+              // user may navigate away; keep lock to avoid stray input
             }, { once: true });
           }
         }, ANIM_MS);
       }
-    }, { passive: true });
+    }
 
+    // Close popup when tapping outside the action area (and unlock input)
+    popup.addEventListener('click', (e) => {
+      if (!e.target.closest('#actionButton')) {
+        hidePopup();
+        unlockInput();
+      }
+    });
+
+    // Keep existing behavior: click outside a/btn inside action area closes popup
     actionButton.addEventListener('click', (e) => {
-      const target = e.target.closest('a,button'); if (!target) hidePopup();
+      const target = e.target.closest('a,button'); if (!target) { hidePopup(); unlockInput(); }
     });
   </script>
 </body>
