@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Balloon Loading Game</title>
+  <title>Balloon Loading Game v1.1</title>
   <link rel="icon" href="./assets/hot-air-balloon.ico" type="image/x-icon" />
-
 
   <!-- Meta Pixel Code -->
   <script>
@@ -53,7 +52,6 @@
       -webkit-touch-callout: none; user-select: none;
     }
 
-    /* slightly larger invisible hitbox for touch (kept modest for accuracy) */
     .balloon::before { content:""; position:absolute; inset:-10%; }
     .balloon::after {
       content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
@@ -75,7 +73,7 @@
       bottom: -20vh;
       animation-name: riseLoopDecel;
       animation-duration: var(--speed, 12s);
-      animation-timing-function: linear; /* keyframe spacing encodes speeds */
+      animation-timing-function: linear;
       animation-iteration-count: infinite;
       animation-delay: var(--delay, 0s);
     }
@@ -94,33 +92,23 @@
 
     @keyframes popupIn { 0%{transform:scale(.9);opacity:0} 50%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
 
-    /* === 10 → 8 → 8 → 12 speed profile over equal time quarters ===
-       Distances proportional to speeds (10,8,8,12) → totals 38 parts.
-       Cumulative distances of a 120vh rise at 25%, 50%, 75%:
-       31.6vh, 56.8vh, 82.1vh. */
+    /* speed profile */
     @keyframes riseLoopDecel {
       0%   { transform: translateY(0) scale(1); opacity: 0; }
       5%   { opacity: 1; }
-      25%  { transform: translateY(-31.6vh); }  /* fast */
-      50%  { transform: translateY(-56.8vh); }  /* slower */
-      75%  { transform: translateY(-82.1vh); }  /* same slower */
-      100% { transform: translateY(-120vh); opacity: 1; } /* fastest end sprint */
+      25%  { transform: translateY(-31.6vh); }
+      50%  { transform: translateY(-56.8vh); }
+      75%  { transform: translateY(-82.1vh); }
+      100% { transform: translateY(-120vh); opacity: 1; }
     }
 
     .balloon.scale-pop { animation: scalePop 0.7s ease-out forwards; z-index: 4; }
     @keyframes scalePop { 0% { transform: scale(1); } 100% { transform: scale(4); } }
 
     @media (max-height: 560px){ .balloons{ top:50%; } }
-
-    /* bigger balloons on mobile / Telegram webview */
     @media (max-width: 600px) {
-      .balloon {
-        width:  clamp(140px, 24vw, 275px);
-        height: clamp(140px, 24vw, 275px);
-      }
-      .balloons {
-        grid-template-columns: repeat(4, clamp(140px, 24vw, 275px));
-      }
+      .balloon { width: clamp(140px, 24vw, 275px); height: clamp(140px, 24vw, 275px); }
+      .balloons { grid-template-columns: repeat(4, clamp(140px, 24vw, 275px)); }
     }
   </style>
 </head>
@@ -149,9 +137,14 @@
   </div>
 
   <!-- 🔊 SFX -->
-  <audio id="sfx-pop"  src="./assets/sfx/pop.mp3"  preload="auto"></audio>
-  <audio id="sfx-win"  src="./assets/sfx/win.mp3"  preload="auto"></audio>
-  <audio id="sfx-lose" src="./assets/sfx/lose.mp3" preload="auto"></audio>
+  <audio id="sfx-pop"    src="./assets/sfx/pop.mp3"        preload="auto"></audio>
+  <audio id="sfx-win"    src="./assets/sfx/win.mp3"        preload="auto"></audio>
+  <audio id="sfx-lose"   src="./assets/sfx/lose.mp3"       preload="auto"></audio>
+  <audio id="sfx-try"    src="./assets/sfx/try-again.mp3"  preload="auto"></audio>
+  <audio id="sfx-claim"  src="./assets/sfx/claim.mp3"      preload="auto"></audio>
+
+  <!-- 🎵 Background music -->
+  <audio id="bgm" src="./assets/sfx/bgm.mp3" preload="auto" loop></audio>
 
   <!-- 🎉 Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -163,21 +156,81 @@
     const resultImg = document.getElementById('resultImg');
     const actionButton = document.getElementById('actionButton');
 
-    // 🔊 Audio helpers
-    const sPop  = document.getElementById('sfx-pop');
-    const sWin  = document.getElementById('sfx-win');
-    const sLose = document.getElementById('sfx-lose');
+    // 🔊 Audio refs
+    const sPop   = document.getElementById('sfx-pop');
+    const sWin   = document.getElementById('sfx-win');
+    const sLose  = document.getElementById('sfx-lose');
+    const sTry   = document.getElementById('sfx-try');
+    const sClaim = document.getElementById('sfx-claim');
+    const bgm    = document.getElementById('bgm');
+
+    // 🔉 v1.1 ducking: define base & ducked levels
+    const BGM_BASE = 0.4;                         // normal intended bgm volume
+    const BGM_DUCK = Number((BGM_BASE * 0.7).toFixed(2));  // -30% volume
 
     function playSfx(audioEl, volume = 1) {
       if (!audioEl) return;
-      try { audioEl.pause(); audioEl.currentTime = 0; audioEl.volume = volume; audioEl.play().catch(()=>{}); } catch(e){}
+      try {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+        audioEl.volume = volume;
+        audioEl.play().catch(()=>{});
+      } catch(e){}
     }
 
-    // unlock audio on first gesture
+    // 🔉 v1.1 helper: smooth set volume (fade)
+    function setBgmVolume(targetVol, fadeMs = 200) {
+      if (!bgm) return;
+      const startVol = bgm.volume ?? 0;
+      if (fadeMs <= 0) { bgm.volume = targetVol; return; }
+      const start = performance.now();
+      function step(t) {
+        const p = Math.min(1, (t - start) / fadeMs);
+        bgm.volume = startVol + (targetVol - startVol) * p;
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Smooth fade in for bgm (to a target)
+    function fadeInBgm(targetVol = BGM_DUCK, ms = 1200) {
+      if (!bgm) return;
+      bgm.volume = 0;
+      const start = performance.now();
+      function step(t) {
+        const p = Math.min(1, (t - start) / ms);
+        bgm.volume = targetVol * p;
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Autostart visuals + attempt silent bgm
+    window.addEventListener('DOMContentLoaded', () => {
+      if (playBtn) playBtn.style.display = 'none';
+      startFreeFly();
+      if (typeof fbq === 'function') fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
+      try { bgm.volume = 0; bgm.play().catch(()=>{}); } catch(e){}
+    }, { passive:true });
+
+    // Unlock audio on first gesture and start bgm at DUCK level (-30%)
     let audioUnlocked = false;
     function unlockAudioOnce() {
-      if (audioUnlocked) return; audioUnlocked = true;
-      playSfx(sPop, 0.001); setTimeout(()=>{ try{ sPop.pause(); sPop.currentTime = 0; }catch(e){} }, 80);
+      if (audioUnlocked) return;
+      audioUnlocked = true;
+
+      // tiny tick to satisfy policies
+      playSfx(sPop, 0.001);
+      setTimeout(()=>{
+        try {
+          bgm.currentTime = 0;
+          bgm.loop = true;
+          bgm.play().then(()=>{
+            // 🔉 v1.1: start at ducked volume (−30%)
+            fadeInBgm(BGM_DUCK, 1000);
+          }).catch(()=>{});
+        } catch(e){}
+      }, 50);
     }
     window.addEventListener('pointerdown', unlockAudioOnce, { once:true, passive:true });
 
@@ -223,16 +276,7 @@
       });
     }
 
-    // autostart
-    window.addEventListener('DOMContentLoaded', () => {
-      if (playBtn) playBtn.style.display = 'none';
-      startFreeFly();
-      if (typeof fbq === 'function') fbq('trackCustom', 'Play', { content_name: 'Auto Start - Balloon' });
-    }, { passive:true });
-
     // ===== Strict, accurate click handling =====
-    // Only count a click if: (1) primary pointer, (2) release on SAME balloon,
-    // and (3) total move distance <= 12px (avoid drags/scrolls/accidental touches).
     balloonsWrap.addEventListener('pointerdown', (e) => {
       if (inputLocked || popup.classList.contains('show')) return;
       if (!e.isPrimary) return;
@@ -240,21 +284,20 @@
       const b = e.target.closest('.balloon');
       if (!b || b.classList.contains('disabled')) return;
 
-      // prevent synthetic "click" after pointer sequence on some browsers
       e.preventDefault();
 
       const startX = e.clientX, startY = e.clientY, pid = e.pointerId;
 
       const onPointerUp = (ev) => {
-        if (ev.pointerId !== pid) return; // same pointer only
+        if (ev.pointerId !== pid) return;
         window.removeEventListener('pointerup', onPointerUp, true);
 
         const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (Math.hypot(dx, dy) > 12) return; // treat as drag/swipe
+        if (Math.hypot(dx, dy) > 12) return;
 
         const upEl = document.elementFromPoint(ev.clientX, ev.clientY);
         const bUp = upEl ? upEl.closest('.balloon') : null;
-        if (bUp !== b) return; // must release on the SAME balloon
+        if (bUp !== b) return;
 
         handleBalloonClick(b);
       };
@@ -265,6 +308,9 @@
     function handleBalloonClick(b) {
       if (inputLocked) return;
       lockInput();
+
+      // 🔉 v1.1: ensure bgm is at ducked level when a balloon is played
+      setBgmVolume(BGM_DUCK, 150);
 
       playSfx(sPop, 0.9);
       b.classList.add('disabled');
@@ -304,6 +350,7 @@
           }
 
           document.getElementById('try-again-btn').addEventListener('click', () => {
+            playSfx(sTry || sPop, 0.9);
             if (typeof fbq === 'function') fbq('trackCustom', 'PlayAgain', { content_name: 'Try Again - Balloon' });
             hidePopup();
             unlockInput(); // allow next click (round 2)
@@ -328,10 +375,10 @@
           const claimBtn = document.getElementById('claim-button');
           if (claimBtn) {
             claimBtn.addEventListener('click', () => {
+              playSfx(sClaim || sWin, 0.9);
               if (typeof fbq === 'function') {
                 fbq('track', 'Purchase', { value: 2.0, currency: 'USD', content_name: 'Claim Button - Balloon' });
               }
-              // user may navigate away; keep lock to avoid stray input
             }, { once: true });
           }
         }, ANIM_MS);
